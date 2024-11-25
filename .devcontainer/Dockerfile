@@ -14,8 +14,9 @@ RUN apt-get update && apt-get install -y \
     openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Ensure correct permissions on .bashrc
-RUN [ -f "$HOME/.bashrc" ] && chmod 644 $HOME/.bashrc || touch $HOME/.bashrc && chmod 644 $HOME/.bashrc
+# Ensure proper ownership and permissions for .bashrc
+USER root
+RUN touch /root/.bashrc && chmod 644 /root/.bashrc && chown root:root /root/.bashrc
 
 # Create the .ssh directory and set permissions
 RUN mkdir -p $HOME/.ssh && chmod 700 $HOME/.ssh
