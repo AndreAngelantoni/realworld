@@ -1,56 +1,38 @@
 ARG VARIANT=12-buster
 FROM node:${VARIANT}
 
-#
-# Handle the ssh key.
-#
-
 # Set up the environment
 ENV HOME=/root
 WORKDIR /root
+USER root
 
-# Ensure necessary tools are installed
+# Install openssh-client.
 RUN apt-get update && apt-get install -y \
     openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
+# Install sudo.
 RUN apt-get update && apt-get install -y sudo && \
 echo "vscode ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-# Ensure proper ownership and permissions for .bashrc
-USER root
-RUN touch /root/.bashrc && chmod 644 /root/.bashrc && chown root:root /root/.bashrc
+# Install extra tools
+RUN apt-get update && apt-get install -y git tree jq && apt-get clean
 
-# Create the .ssh directory and set permissions
-RUN mkdir -p $HOME/.ssh && chmod 700 $HOME/.ssh
+# Set up quality of life improvements for everyone.
+RUN echo "alias ll='ls -la'" >> /etc/bash.bashrc && \
+    echo "export PATH=/usr/local/share/npm-global/bin:\$PATH" >> /etc/bash.bashrc && \
+    echo "alias ll='ls -la'" >> /etc/profile && \
+    echo "export PATH=/usr/local/share/npm-global/bin:\$PATH" >> /etc/profile
 
-# Add the SSH config file
-RUN echo "Host github.com-neverendingsupport\n\
-    Hostname github.com\n\
-    StrictHostKeyChecking no\n\
-    User AndreAngelantoni\n\
-    AddKeysToAgent yes\n\
-    IdentityFile ~/.ssh/id_rsa_no_passphrase\n\
-    IdentitiesOnly yes" > $HOME/.ssh/config && chmod 600 $HOME/.ssh/config
+RUN echo "export PS1='\u@\h:\w\$ '" >> /etc/bash.bashrc && \
+echo "export PS1='\u@\h:\w\$ '" >> /etc/profile
 
-# Add the private key file
-COPY id_rsa_no_passphrase $HOME/.ssh/id_rsa_no_passphrase
-RUN chmod 600 $HOME/.ssh/id_rsa_no_passphrase
-
-# Test SSH setup (optional)
-RUN ssh -T git@github.com || echo "SSH setup successful"
-
-# Create a non-root user (vscode)
-RUN useradd -m -s /bin/bash vscode
 
 #
-# Install Node.
+# Install Node and gulp.
 #
-
 ARG USERNAME=node
 ARG NPM_GLOBAL=/usr/local/share/npm-global
-
-USER root
 
 # Add NPM global to PATH.
 ENV PATH=${NPM_GLOBAL}/bin:${PATH}
@@ -70,47 +52,59 @@ RUN \
     && su ${USERNAME} -c "umask 0002 && npm install -g eslint" \
     && npm cache clean --force > /dev/null 2>&1
 
-# Install extra apps.
-RUN apt-get update && apt-get install -y git tree jq && apt-get clean
+# [Optional] Uncomment if you want to install an additional version of node using nvm.
+# ARG EXTRA_NODE_VERSION=10
+# RUN su node -c "source /usr/local/share/nvm/nvm.sh && nvm install ${EXTRA_NODE_VERSION}"
 
 # Install gulp globally.
 RUN npm install -g gulp
 
-# Install app's node dependencies.
-RUN npm install
+#
+# Create user(s).
+#
+RUN useradd -m -s /bin/bash vscode
 
-# Set up quality of life improvements for vscode user
-RUN echo "alias ll='ls -la'" >> /home/vscode/.bashrc && \
-    echo "export PATH=/usr/local/share/npm-global/bin:\$PATH" >> /home/vscode/.bashrc && \
-    chown vscode:vscode /home/vscode/.bashrc
+#
+# Set up ssh.
+#
 
-RUN touch /root/.bashrc /root/.bash_profile && \
-chmod 644 /root/.bashrc /root/.bash_profile && \
-chown root:root /root/.bashrc /root/.bash_profile
+# Create the .ssh directory and set permissions.
+RUN mkdir -p $HOME/.ssh && chmod 700 $HOME/.ssh
 
-# Create a workspace directory for the vscode user
-RUN mkdir -p /workspaces && chown -R vscode:vscode /workspaces
+# Add the SSH config file
+RUN echo "Host github.com-neverendingsupport\n\
+    Hostname github.com\n\
+    StrictHostKeyChecking no\n\
+    User AndreAngelantoni\n\
+    AddKeysToAgent yes\n\
+    IdentityFile ~/.ssh/id_rsa_no_passphrase\n\
+    IdentitiesOnly yes" > $HOME/.ssh/config && chmod 600 $HOME/.ssh/config
 
-# Switch to the vscode user
+# Copy the public key.
+COPY .devcontainer/id_rsa_no_passphrase $HOME/.ssh/id_rsa_no_passphrase
+RUN chmod 600 $HOME/.ssh/id_rsa_no_passphrase
+
+# Test SSH setup (optional).
+RUN ssh -T git@github.com || echo "SSH setup successful"
+
+#
+# Set up a workspaces directory, then log in with a clean shell.
+#
+
+# Create a workspace directory for the vscode user.
+RUN mkdir -p /workspaces/app && chown -R vscode:vscode /workspaces
+
+# Copy all files above .devcontainer (from the context)
+# into /workspaces/app.
+COPY . /workspaces/app
+
+# Add a .bash_profile to user vscode.
+RUN echo "source /etc/profile" > /home/vscode/.bash_profile && \
+    chown vscode:vscode /home/vscode/.bash_profile
+
 USER vscode
-WORKDIR /workspaces
+WORKDIR /workspaces/app
 
-USER root
-# Use a clean login shell for vscode
+# Prevents looking for the .bash_profile in /root.
+ENV HOME=/home/vscode
 CMD ["/bin/bash", "--login"]
-
-#
-# For reference.
-#
-# -------------------------------------------------------------
-
-# [Optional] Uncomment this section to install additional OS packages.
-# RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
-#     && apt-get -y install --no-install-recommends <your-package-list-here>
-
-# [Optional] Uncomment if you want to install an additional version of node using nvm
-# ARG EXTRA_NODE_VERSION=10
-# RUN su node -c "source /usr/local/share/nvm/nvm.sh && nvm install ${EXTRA_NODE_VERSION}"
-
-# [Optional] Uncomment if you want to install more global node modules
-# RUN su node -c "npm install -g <your-package-list-here>"
