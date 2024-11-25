@@ -1,4 +1,6 @@
-ARG VARIANT=12-buster
+#ARG VARIANT=12-buster
+#ARG VARIANT=16-buster
+ARG VARIANT=18-buster
 FROM node:${VARIANT}
 
 # Set up the environment
@@ -29,7 +31,7 @@ echo "export PS1='\u@\h:\w\$ '" >> /etc/profile
 
 
 #
-# Install Node and gulp.
+# Install Node, pnpm and gulp.
 #
 ARG USERNAME=node
 ARG NPM_GLOBAL=/usr/local/share/npm-global
@@ -55,6 +57,9 @@ RUN \
 # [Optional] Uncomment if you want to install an additional version of node using nvm.
 # ARG EXTRA_NODE_VERSION=10
 # RUN su node -c "source /usr/local/share/nvm/nvm.sh && nvm install ${EXTRA_NODE_VERSION}"
+
+# Install pnpm globally.
+RUN npm install -g pnpm
 
 # Install gulp globally.
 RUN npm install -g gulp
@@ -88,22 +93,30 @@ RUN chmod 600 $HOME/.ssh/id_rsa_no_passphrase
 RUN ssh -T git@github.com || echo "SSH setup successful"
 
 #
-# Set up a workspaces directory, then log in with a clean shell.
+# Set up a workspace directory, then log in with a clean shell.
 #
 
 # Create a workspace directory for the vscode user.
-RUN mkdir -p /workspaces/app && chown -R vscode:vscode /workspaces
-
-# Copy all files above .devcontainer (from the context)
-# into /workspaces/app.
-COPY . /workspaces/app
+RUN mkdir -p /workspace && chown -R vscode:vscode /workspace
 
 # Add a .bash_profile to user vscode.
 RUN echo "source /etc/profile" > /home/vscode/.bash_profile && \
     chown vscode:vscode /home/vscode/.bash_profile
 
+# Copy all files above .devcontainer (from the context)
+# into /workspace. Change ownership before changing user.
+COPY . /workspace
+RUN chown -R vscode:vscode /workspace
+
 USER vscode
-WORKDIR /workspaces/app
+WORKDIR /workspace
+
+#
+# API server runs on port 3000.
+# Documentation server runs on port 4321.
+#
+EXPOSE 3000
+EXPOSE 4321
 
 # Prevents looking for the .bash_profile in /root.
 ENV HOME=/home/vscode
