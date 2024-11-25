@@ -14,6 +14,9 @@ RUN apt-get update && apt-get install -y \
     openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
+RUN apt-get update && apt-get install -y sudo && \
+echo "vscode ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
 # Ensure proper ownership and permissions for .bashrc
 USER root
 RUN touch /root/.bashrc && chmod 644 /root/.bashrc && chown root:root /root/.bashrc
@@ -37,6 +40,8 @@ RUN chmod 600 $HOME/.ssh/id_rsa_no_passphrase
 # Test SSH setup (optional)
 RUN ssh -T git@github.com || echo "SSH setup successful"
 
+# Create a non-root user (vscode)
+RUN useradd -m -s /bin/bash vscode
 
 #
 # Install Node.
@@ -46,7 +51,6 @@ ARG USERNAME=node
 ARG NPM_GLOBAL=/usr/local/share/npm-global
 
 USER root
-RUN useradd -m vscode
 
 # Add NPM global to PATH.
 ENV PATH=${NPM_GLOBAL}/bin:${PATH}
@@ -75,14 +79,25 @@ RUN npm install -g gulp
 # Install app's node dependencies.
 RUN npm install
 
-# Set up quality of life improvements. Add to all users.
-RUN echo "alias ll='ls -la'" >> /etc/bash.bashrc
+# Set up quality of life improvements for vscode user
+RUN echo "alias ll='ls -la'" >> /home/vscode/.bashrc && \
+    echo "export PATH=/usr/local/share/npm-global/bin:\$PATH" >> /home/vscode/.bashrc && \
+    chown vscode:vscode /home/vscode/.bashrc
 
+RUN touch /root/.bashrc /root/.bash_profile && \
+chmod 644 /root/.bashrc /root/.bash_profile && \
+chown root:root /root/.bashrc /root/.bash_profile
+
+# Create a workspace directory for the vscode user
 RUN mkdir -p /workspaces && chown -R vscode:vscode /workspaces
 
+# Switch to the vscode user
 USER vscode
+WORKDIR /workspaces
 
-CMD ["bash", "-c", "cd /workspaces && exec /bin/bash"]
+USER root
+# Use a clean login shell for vscode
+CMD ["/bin/bash", "--login"]
 
 #
 # For reference.
