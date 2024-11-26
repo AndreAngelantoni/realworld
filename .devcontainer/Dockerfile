@@ -1,6 +1,7 @@
 #ARG VARIANT=12-buster
 #ARG VARIANT=16-buster
-ARG VARIANT=18-buster
+#ARG VARIANT=18-buster
+ARG VARIANT=22-buster
 FROM node:${VARIANT}
 
 # Set up the environment
@@ -26,6 +27,7 @@ RUN echo "alias ll='ls -la'" >> /etc/bash.bashrc && \
     echo "alias ll='ls -la'" >> /etc/profile && \
     echo "export PATH=/usr/local/share/npm-global/bin:\$PATH" >> /etc/profile
 
+# Change prompt to user:dirctory$
 RUN echo "export PS1='\u@\h:\w\$ '" >> /etc/bash.bashrc && \
 echo "export PS1='\u@\h:\w\$ '" >> /etc/profile
 
